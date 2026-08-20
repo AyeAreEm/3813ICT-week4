@@ -1,7 +1,16 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
+
+interface AuthResponse {
+  valid: boolean;
+  username: string;
+  birthday: string;
+  age: number;
+  email: string;
+}
 
 @Component({
   selector: 'app-login',
@@ -13,27 +22,38 @@ import { CommonModule } from '@angular/common';
 export class Login {
   email: string = '';
   password: string = '';
-  errorMessage: string = '';
+  errorMessage = signal('');
 
-  users = [
-    { email: 'a@a.com', password: 'asdf' },
-    { email: 'b@b.com', password: '1234' },
-    { email: 'c@c.com', password: 'qwerty' }
-  ];
-
-  constructor(private router: Router) { }
+  constructor(private router: Router, private http: HttpClient) { }
 
   login() {
-    const matchedUser = this.users.find(
-      user => user.email === this.email && user.password === this.password
-    );
+    this.http.post<AuthResponse>('http://localhost:3000/api/auth', {
+      email: this.email,
+      password: this.password
+    }).subscribe({
+      next: (response) => {
+        if (response.valid) {
+          this.persistLoginState(response);
+          this.router.navigate(['/profile']);
+        } else {
+          this.errorMessage.set('Invalid email or password. Please try again.');
+        }
+      },
+      error: () => this.errorMessage.set('Something went wrong. Please try again later.')
+    });
+  }
 
-    if (matchedUser) {
-      this.errorMessage = '';
-      this.router.navigate(['/profile']);
-    } else {
-      this.errorMessage = 'Invalid email or password. Please try again.';
-      console.log(this.errorMessage);
+  private persistLoginState(user: AuthResponse) {
+    try {
+      localStorage.setItem('auth', JSON.stringify(user));
+    } catch (e) {
+      console.error('Failed to save to localStorage', e);
+    }
+
+    try {
+      sessionStorage.setItem('auth', JSON.stringify(user));
+    } catch (e) {
+      console.error('Failed to save to sessionStorage', e);
     }
   }
 }
